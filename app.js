@@ -14,6 +14,18 @@ let onNext = (x) => {
     console.log('Data emitted -> ', x);
 };
 
+let notificationOnNext = (x) => {
+    console.log('Data emitted from notifications subject -> ', x);
+    document.getElementById('notifications').innerText = x.count;
+    let li = document.createElement('li');
+    li.innerText = x.messages[x.messages.length - 1];
+    document.getElementById('msgs').appendChild(li);
+};
+
+let subjectOnNext = (x) => {
+    console.log('Data emitted from subject -> ', x);
+};
+
 let onError = (e) => {
     console.log('Error catched -> ', e);
 };
@@ -151,6 +163,8 @@ let words = [
 ];
 
 let wordsSource = Observable.from(words);
+let subject = new Rx.Subject();
+subject.subscribe(getObserver(subjectOnNext, onError, onCompleted));
 
 console.log('\n');
 wordsSource
@@ -167,7 +181,37 @@ wordsSource
             message: "Une erreur est survenue lors de la construction du mot à partir du flux"
         })
     )
-    .subscribe(getObserver(onNext, onError, onCompleted));
+    .subscribe(subject);
+
+/**
+ * Test Subject complexe
+ */
+let messagesSubject = new Rx.ReplaySubject();
+let notificationsSubject = new Rx.Subject();
+
+let source = Rx.Observable
+    .interval(1000)
+    .map(x => 'Message ' + x)
+    .takeUntil(Observable.timer(10000));
+
+notificationsSubject
+    .scan((previous, current) => {
+        let newMessages = [...previous.messages];
+        newMessages.push(current);
+        return { count: previous.count + 1, messages: newMessages }
+    }, { count: 0, messages: [] })
+    .subscribe(getObserver(notificationOnNext, onError, onCompleted));
+
+messagesSubject.onNext("Message récupéré avec replay");
+
+messagesSubject.subscribe(notificationsSubject);
+source.subscribe(messagesSubject);
+
+
+
+
+
+
 
 
 
