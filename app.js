@@ -82,18 +82,94 @@ Rx.Observable
     .subscribe(getObserver(onNext, onError, onCompleted));
 
 /**
- * Difference between flatMap and Merge
+ * Scan agit comme reduce mais émet les valeurs intermédiaires dans le temps
+ * Range crée une rangée de nombres entiers
  */
 console.log('\n');
-let ab = Observable.create((observer) => {
-    observer.onNext(a);
-    observer.onNext(b);
-    observer.onCompleted();
+let average = Observable
+    .range(0, 5)
+    .scan((prev, current) => {
+        return {
+            sum: prev.sum + current,
+            count: prev.count + 1
+        };
+    }, { sum: 0, count: 0 })
+    .map(x => x.sum / x.count);
+
+average.subscribe(getObserver(onNext, onError, onCompleted));
+
+/**
+ * Observable + http + scan
+ */
+console.log('\n');
+let httpSource = Observable.create((observer) => {
+    let req = new XMLHttpRequest();
+    req.open('GET', 'https://jsonplaceholder.typicode.com/todos');
+    req.onload = () => {
+        if (req.status == 200) {
+            observer.onNext(JSON.parse(req.response).filter(x => x.userId == 2));
+        }
+        else {
+            observer.onError("Erreur 400");
+        }
+    };
+    req.onError = () => {
+        observer.onError("Une erreur inconnue est survenue");
+    };
+    req.send();
 });
 
-ab.flatMap(data => data)
-    .takeUntil(Observable.timer(500))
+httpSource.subscribe(getObserver(onNext, onError, onCompleted));
+
+/**
+ * Capture d'erreur sans interruption du flux
+ */
+let arraySource = Observable.from([
+    '{"id":1}', // Cas ok
+    '{"id:2}' // Cas d'erreur
+]);
+
+console.log('\n');
+arraySource
+    .map(x => JSON.parse(x))
+    .retry(2)
+    .catch(Observable.return({
+        error: "Error parsing json"
+    }))
     .subscribe(getObserver(onNext, onError, onCompleted));
+
+/**
+ * Second test de l'opérateur scan
+ */
+
+let words = [
+    'Hello ',
+    'my ',
+    'name ',
+    'is ',
+    'josé.'
+];
+
+let wordsSource = Observable.from(words);
+
+console.log('\n');
+wordsSource
+    .map(x => x.toUpperCase())
+    .reduce((previous, current) => { // ou .scan pour avoir les valeurs intermédiaires
+        return {
+            index: previous.index + 1,
+            word: previous.word + current,
+            isCompleted: previous.word.split(' ').length == words.length
+        }
+    }, { word: "", isCompleted: false, index: -1 })
+    .catch(
+        Observable.return({
+            message: "Une erreur est survenue lors de la construction du mot à partir du flux"
+        })
+    )
+    .subscribe(getObserver(onNext, onError, onCompleted));
+
+
 
 
 
